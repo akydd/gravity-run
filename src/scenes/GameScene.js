@@ -5,7 +5,6 @@ const PLAYER_HEIGHT = 48;
 const SCROLL_SPEED = 300;
 const GRAVITY = 800;
 const OBSTACLE_WIDTH = 24;
-const OBSTACLE_HEIGHT = 40;
 const SPAWN_INTERVAL = 1800;
 
 export default class GameScene extends Phaser.Scene {
@@ -17,6 +16,23 @@ export default class GameScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
+
+    const gap = height - 2 * WALL_MARGIN - 2 * TILE_SIZE;
+    const maxObstacleHeight = gap / 2;
+    this.obstacleSizes = [
+      { w: OBSTACLE_WIDTH, h: Math.round(maxObstacleHeight / 3), type: 'cone' },
+      { w: OBSTACLE_WIDTH, h: Math.round(maxObstacleHeight * 2 / 3), type: 'stopSign' },
+      { w: Math.round(maxObstacleHeight * 1.5), h: maxObstacleHeight, type: 'dumpster' },
+    ];
+
+    const { w: cw, h: ch } = this.obstacleSizes[0];
+    this._createConeTexture(cw, ch);
+
+    const { w: sw, h: sh } = this.obstacleSizes[1];
+    this._createStopSignTexture(sw, sh);
+
+    const { w: dw, h: dh } = this.obstacleSizes[2];
+    this._createDumpsterTexture(dw, dh);
 
     this._createSkaterTexture();
 
@@ -139,10 +155,8 @@ export default class GameScene extends Phaser.Scene {
       const angle = flipAngles[frameIndex - 2];
       this._drawSkaterRotated(g, ox, angle);
     } else {
-      // Death frames: spinning skater
-      const deathAngles = [45, 90, 135, 180];
-      const angle = deathAngles[frameIndex - 6];
-      this._drawSkaterRotated(g, ox, angle, true);
+      // Death frames: person falling off board
+      this._drawDeathFrame(g, ox, frameIndex - 6);
     }
   }
 
@@ -259,6 +273,74 @@ export default class GameScene extends Phaser.Scene {
     g.fillPoints(boardCorners, true);
   }
 
+  _drawDeathFrame(g, ox, frameIndex) {
+    const w = PLAYER_WIDTH;
+    const h = PLAYER_HEIGHT;
+
+    // Each frame: person rotates backward, board slides away separately
+    const bodyAngle  = [20,  60, 110, 160][frameIndex]; // person tipping back (degrees)
+    const bodyRise   = [ 0,   4,   8,  12][frameIndex]; // person floats upward (px)
+    const boardSlide = [ 2,   6,  11,  16][frameIndex]; // board slides left (px)
+    const boardTilt  = [ 5,  25,  50,  80][frameIndex]; // board tilts (degrees)
+
+    const cx = ox + w / 2;
+    const bRad = (bodyAngle * Math.PI) / 180;
+    const bCos = Math.cos(bRad);
+    const bSin = Math.sin(bRad);
+    const bodyCY = h / 2 - bodyRise;
+
+    // ── Person body ───────────────────────────────────────────────────────
+    const bw = 10, bh = 30;
+    const hw = bw / 2, hh = bh / 2;
+    g.fillStyle(0x2980b9);
+    g.fillPoints([[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => ({
+      x: cx + x * bCos - y * bSin,
+      y: bodyCY + x * bSin + y * bCos,
+    })), true);
+
+    // Head
+    const headX = cx + (-hh + 5) * (-bSin);
+    const headY = bodyCY + (-hh + 5) * bCos;
+    g.fillStyle(0xf5c97a);
+    g.fillCircle(headX, headY, 6);
+
+    // Helmet
+    g.fillStyle(0xe74c3c);
+    const helmRad = (bodyAngle - 10) * Math.PI / 180;
+    g.fillEllipse(
+      headX - Math.sin(helmRad) * 3,
+      headY - Math.cos(helmRad) * 3,
+      14, 8
+    );
+
+    // Arms flailing outward as they fall
+    const armSpread = [8, 13, 16, 18][frameIndex];
+    g.fillStyle(0x2980b9);
+    const armBaseX = cx + (hh - 12) * (-bSin);
+    const armBaseY = bodyCY + (hh - 12) * bCos;
+    const perpX = bCos, perpY = bSin;
+    g.fillRect(armBaseX - perpX * armSpread - 3, armBaseY - perpY * armSpread - 1, 6, 3);
+    g.fillRect(armBaseX + perpX * armSpread - 3, armBaseY + perpY * armSpread - 1, 6, 3);
+
+    // ── Board (slides left and tilts independently) ───────────────────────
+    const boardX = cx - boardSlide;
+    const boardY = h - 10;
+    const tRad = (boardTilt * Math.PI) / 180;
+    const tCos = Math.cos(tRad);
+    const tSin = Math.sin(tRad);
+    const brd = 13;
+    g.fillStyle(0xc0813a);
+    g.fillPoints([[-brd, -3], [brd, -3], [brd, 3], [-brd, 3]].map(([x, y]) => ({
+      x: boardX + x * tCos - y * tSin,
+      y: boardY + x * tSin + y * tCos,
+    })), true);
+
+    // Wheels
+    g.fillStyle(0x222222);
+    g.fillCircle(boardX + (-brd + 3) * tCos, boardY + (-brd + 3) * tSin, 3);
+    g.fillCircle(boardX + (brd - 3) * tCos, boardY + (brd - 3) * tSin, 3);
+  }
+
   // ─── gravity flip animation ───────────────────────────────────────────────
 
   _playFlipAnim() {
@@ -317,21 +399,170 @@ export default class GameScene extends Phaser.Scene {
 
   _spawnObstacle() {
     const { width, height } = this.scale;
-    const spawnX = this.cameras.main.scrollX + width + OBSTACLE_WIDTH;
     const floorSurface = height - WALL_MARGIN - TILE_SIZE;
     const ceilingSurface = WALL_MARGIN + TILE_SIZE;
-
-    if (Phaser.Math.Between(0, 1) === 0) {
-      this._addObstacle(spawnX, floorSurface - OBSTACLE_HEIGHT / 2);
-    } else {
-      this._addObstacle(spawnX, ceilingSurface + OBSTACLE_HEIGHT / 2);
-    }
+    const { w, h, type } = Phaser.Utils.Array.GetRandom(this.obstacleSizes);
+    const spawnX = this.cameras.main.scrollX + width + w;
+    const fromCeiling = Phaser.Math.Between(0, 1) === 1;
+    const y = fromCeiling ? ceilingSurface + h / 2 : floorSurface - h / 2;
+    this._addObstacle(spawnX, y, w, h, type, fromCeiling);
   }
 
-  _addObstacle(x, y) {
-    const obs = this.add.rectangle(x, y, OBSTACLE_WIDTH, OBSTACLE_HEIGHT, 0xff4757);
+  _addObstacle(x, y, w, h, type, fromCeiling) {
+    let obs;
+    if (type === 'dumpster') {
+      obs = this.add.image(x, y, 'dumpster');
+      obs.setFlipY(fromCeiling);
+    } else if (type === 'cone') {
+      obs = this.add.image(x, y, 'cone');
+      obs.setFlipY(fromCeiling);
+    } else if (type === 'stopSign') {
+      obs = this.add.image(x, y, 'stopSign');
+      obs.setFlipY(fromCeiling);
+    } else {
+      obs = this.add.rectangle(x, y, w, h, 0xff4757);
+    }
     this.physics.add.existing(obs, true);
     this.obstacles.add(obs);
+  }
+
+  _createStopSignTexture(w, h) {
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+    const signSize = w; // octagon fits in w×w square
+    const cut = Math.round(signSize * 0.22);
+    const poleW = Math.round(w * 0.15);
+    const poleX = Math.round((w - poleW) / 2);
+
+    // Pole
+    g.fillStyle(0x999999);
+    g.fillRect(poleX, signSize, poleW, h - signSize);
+
+    // White octagon border
+    g.fillStyle(0xffffff);
+    g.fillPoints([
+      { x: cut,          y: 0          },
+      { x: w - cut,      y: 0          },
+      { x: w,            y: cut        },
+      { x: w,            y: signSize - cut },
+      { x: w - cut,      y: signSize   },
+      { x: cut,          y: signSize   },
+      { x: 0,            y: signSize - cut },
+      { x: 0,            y: cut        },
+    ], true);
+
+    // Red octagon inset by border
+    const b = 2;
+    g.fillStyle(0xcc0000);
+    g.fillPoints([
+      { x: cut + b,      y: b          },
+      { x: w - cut - b,  y: b          },
+      { x: w - b,        y: cut + b    },
+      { x: w - b,        y: signSize - cut - b },
+      { x: w - cut - b,  y: signSize - b },
+      { x: cut + b,      y: signSize - b },
+      { x: b,            y: signSize - cut - b },
+      { x: b,            y: cut + b    },
+    ], true);
+
+    // "STOP" lettering — four white rectangles suggesting the word
+    const lx = Math.round(w * 0.18);
+    const lw = Math.round(w * 0.64);
+    const ly = Math.round(signSize * 0.35);
+    const lh = Math.round(signSize * 0.28);
+    g.fillStyle(0xffffff);
+    // Top bar
+    g.fillRect(lx, ly, lw, Math.round(lh * 0.22));
+    // Middle bar
+    g.fillRect(lx, ly + Math.round(lh * 0.39), lw, Math.round(lh * 0.22));
+    // Bottom bar
+    g.fillRect(lx, ly + Math.round(lh * 0.78), lw, Math.round(lh * 0.22));
+
+    g.generateTexture('stopSign', w, h);
+    g.destroy();
+  }
+
+  _createConeTexture(w, h) {
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+    const baseH = Math.round(h * 0.18);
+    const coneH = h - baseH;
+    const cx = Math.round(w / 2);
+
+    // Base
+    g.fillStyle(0x222222);
+    g.fillRect(0, coneH, w, baseH);
+
+    // Cone body (orange)
+    g.fillStyle(0xff6a00);
+    g.fillTriangle(cx, 0, 0, coneH, w, coneH);
+
+    // White stripe (trapezoid across middle of cone)
+    const sTop = Math.round(coneH * 0.45);
+    const sBot = Math.round(coneH * 0.68);
+    const wTop = Math.round(w * sTop / coneH);
+    const wBot = Math.round(w * sBot / coneH);
+    g.fillStyle(0xffffff);
+    g.fillPoints([
+      { x: cx - Math.round(wTop / 2), y: sTop },
+      { x: cx + Math.round(wTop / 2), y: sTop },
+      { x: cx + Math.round(wBot / 2), y: sBot },
+      { x: cx - Math.round(wBot / 2), y: sBot },
+    ], true);
+
+    g.generateTexture('cone', w, h);
+    g.destroy();
+  }
+
+  _createDumpsterTexture(w, h) {
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+    const lidH = Math.round(h * 0.15);
+    const wheelR = Math.round(h * 0.09);
+    const bodyTop = lidH;
+    const bodyH = h - lidH - wheelR * 2;
+
+    // Main body
+    g.fillStyle(0x2d6b1f);
+    g.fillRect(6, bodyTop, w - 12, bodyH);
+
+    // Side walls (darker)
+    g.fillStyle(0x1f4d15);
+    g.fillRect(6, bodyTop, 8, bodyH);
+    g.fillRect(w - 14, bodyTop, 8, bodyH);
+
+    // Horizontal ribs
+    g.fillStyle(0x1a4010);
+    g.fillRect(6, bodyTop + Math.round(bodyH * 0.33), w - 12, 3);
+    g.fillRect(6, bodyTop + Math.round(bodyH * 0.66), w - 12, 3);
+
+    // Metallic rim at top of body
+    g.fillStyle(0x777777);
+    g.fillRect(6, bodyTop, w - 12, 3);
+
+    // Lid
+    g.fillStyle(0x3a8a28);
+    g.fillRect(0, 0, w, lidH);
+
+    // Lid shadow at bottom edge
+    g.fillStyle(0x1a4010);
+    g.fillRect(6, lidH - 3, w - 12, 3);
+
+    // Lid handle
+    g.fillStyle(0x888888);
+    g.fillRect(Math.round(w / 2) - 12, Math.round(lidH * 0.2), 24, Math.round(lidH * 0.55));
+
+    // Wheels
+    g.fillStyle(0x222222);
+    g.fillCircle(20, h - wheelR, wheelR);
+    g.fillCircle(w - 20, h - wheelR, wheelR);
+
+    // Axle
+    g.fillStyle(0x555555);
+    g.fillRect(20, h - wheelR - 2, w - 40, 4);
+
+    g.generateTexture('dumpster', w, h);
+    g.destroy();
   }
 
   _scrollObstacles(dt) {
@@ -342,7 +573,7 @@ export default class GameScene extends Phaser.Scene {
       obs.x -= shift;
       obs.body.reset(obs.x, obs.y);
 
-      if (obs.x < camX - OBSTACLE_WIDTH) {
+      if (obs.x < camX - obs.width) {
         obs.destroy();
       }
     });
