@@ -15,6 +15,10 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    this.isAlive = true;
+    this.score = 0;
+    this.physics.world.gravity.y = GRAVITY;
+
     const { width, height } = this.scale;
 
     const gap = height - 2 * WALL_MARGIN - 2 * TILE_SIZE;
@@ -73,6 +77,10 @@ export default class GameScene extends Phaser.Scene {
     // Obstacles
     this.obstacles = this.physics.add.staticGroup();
     this.physics.add.collider(this.player, this.obstacles, () => this._gameOver());
+
+    // Dumpsters are landable — only kill on side hit
+    this.dumpsters = this.physics.add.staticGroup();
+    this.physics.add.collider(this.player, this.dumpsters, null, this._processDumpsterCollision, this);
 
     this.spawnTimer = this.time.addEvent({
       delay: SPAWN_INTERVAL,
@@ -413,6 +421,9 @@ export default class GameScene extends Phaser.Scene {
     if (type === 'dumpster') {
       obs = this.add.image(x, y, 'dumpster');
       obs.setFlipY(fromCeiling);
+      this.physics.add.existing(obs, true);
+      this.dumpsters.add(obs);
+      return;
     } else if (type === 'cone') {
       obs = this.add.image(x, y, 'cone');
       obs.setFlipY(fromCeiling);
@@ -424,6 +435,18 @@ export default class GameScene extends Phaser.Scene {
     }
     this.physics.add.existing(obs, true);
     this.obstacles.add(obs);
+  }
+
+  _processDumpsterCollision(player, dumpster) {
+    const pb = player.body;
+    const db = dumpster.body;
+    const playerCenterY = pb.top + pb.height / 2;
+    if (playerCenterY > db.top && playerCenterY < db.bottom) {
+      // Player centre is inside the dumpster's vertical range → side hit
+      this._gameOver();
+      return false;
+    }
+    return true; // player centre is above or below → top/bottom surface hit
   }
 
   _createStopSignTexture(w, h) {
@@ -569,14 +592,18 @@ export default class GameScene extends Phaser.Scene {
     const shift = SCROLL_SPEED * dt;
     const camX = this.cameras.main.scrollX;
 
-    this.obstacles.getChildren().forEach(obs => {
-      obs.x -= shift;
-      obs.body.reset(obs.x, obs.y);
+    const scrollGroup = (group) => {
+      group.getChildren().forEach(obs => {
+        obs.x -= shift;
+        obs.body.reset(obs.x, obs.y);
+        if (obs.x < camX - obs.width) {
+          obs.destroy();
+        }
+      });
+    };
 
-      if (obs.x < camX - obs.width) {
-        obs.destroy();
-      }
-    });
+    scrollGroup(this.obstacles);
+    scrollGroup(this.dumpsters);
   }
 
   _gameOver() {
@@ -617,7 +644,7 @@ export default class GameScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setScrollFactor(0).setOrigin(0.5);
 
-    this.add.text(width / 2, height / 2 + 60, 'Press R to restart', {
+    this.add.text(width / 2, height / 2 + 60, 'Press R to restart  |  H for home', {
       fontSize: '18px',
       fill: '#aaaaaa',
       fontFamily: 'monospace',
@@ -627,6 +654,10 @@ export default class GameScene extends Phaser.Scene {
       this.score = 0;
       this.isAlive = true;
       this.scene.restart();
+    });
+
+    this.input.keyboard.once('keydown-H', () => {
+      this.scene.start('HomeScene');
     });
   }
 }
