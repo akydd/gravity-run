@@ -41,6 +41,11 @@ export default class HomeScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    btnBg.on('pointerdown', () => this.scene.start('GameScene'));
+    btnBg.on('pointerdown', () => {
+      if (this.scale.isFullscreen === false) {
+        this.scale.startFullscreen();
+      }
+      this.scene.start('GameScene');
+    });
   }
 }
