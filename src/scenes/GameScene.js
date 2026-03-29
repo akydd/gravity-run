@@ -97,6 +97,7 @@ export default class GameScene extends Phaser.Scene {
 
     // Input
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.input.on('pointerdown', () => this._tryFlipGravity());
 
     // Score text (fixed to camera)
     this.scoreText = this.add.text(16, 16, 'Score: 0', {
@@ -115,12 +116,8 @@ export default class GameScene extends Phaser.Scene {
     this._scrollObstacles(dt);
 
     // Space: flip gravity, only when touching a surface
-    const onSurface = this.player.body.blocked.down || this.player.body.blocked.up;
-    if (onSurface && Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-      this.gravityDir *= -1;
-      this.physics.world.gravity.y = GRAVITY * this.gravityDir;
-      this.player.body.setVelocityY(0);
-      this._playFlipAnim();
+    if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+      this._tryFlipGravity();
     }
 
     this.score += SCROLL_SPEED * dt;
@@ -347,6 +344,16 @@ export default class GameScene extends Phaser.Scene {
     g.fillStyle(0x222222);
     g.fillCircle(boardX + (-brd + 3) * tCos, boardY + (-brd + 3) * tSin, 3);
     g.fillCircle(boardX + (brd - 3) * tCos, boardY + (brd - 3) * tSin, 3);
+  }
+
+  _tryFlipGravity() {
+    if (!this.isAlive) return;
+    const onSurface = this.player.body.blocked.down || this.player.body.blocked.up;
+    if (!onSurface) return;
+    this.gravityDir *= -1;
+    this.physics.world.gravity.y = GRAVITY * this.gravityDir;
+    this.player.body.setVelocityY(0);
+    this._playFlipAnim();
   }
 
   // ─── gravity flip animation ───────────────────────────────────────────────
