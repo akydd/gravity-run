@@ -651,20 +651,37 @@ export default class GameScene extends Phaser.Scene {
       fontFamily: 'monospace',
     }).setScrollFactor(0).setOrigin(0.5);
 
-    this.add.text(width / 2, height / 2 + 60, 'Press R to restart  |  H for home', {
+    const btnY = height / 2 + 70;
+    const btnW = 160;
+    const btnH = 44;
+    const gap = 20;
+
+    // Restart button
+    const restartBg = this.add.rectangle(width / 2 - btnW / 2 - gap / 2, btnY, btnW, btnH, 0xf0c040)
+      .setScrollFactor(0).setInteractive({ useHandCursor: true });
+    this.add.text(width / 2 - btnW / 2 - gap / 2, btnY, 'RESTART', {
       fontSize: '18px',
-      fill: '#aaaaaa',
+      fill: '#000000',
       fontFamily: 'monospace',
+      fontStyle: 'bold',
     }).setScrollFactor(0).setOrigin(0.5);
 
-    this.input.keyboard.once('keydown-R', () => {
+    // Home button
+    const homeBg = this.add.rectangle(width / 2 + btnW / 2 + gap / 2, btnY, btnW, btnH, 0x4a90d9)
+      .setScrollFactor(0).setInteractive({ useHandCursor: true });
+    this.add.text(width / 2 + btnW / 2 + gap / 2, btnY, 'HOME', {
+      fontSize: '18px',
+      fill: '#000000',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+    }).setScrollFactor(0).setOrigin(0.5);
+
+    restartBg.on('pointerdown', () => {
       this.score = 0;
       this.isAlive = true;
       this.scene.restart();
     });
 
-    this.input.keyboard.once('keydown-H', () => {
-      this.scene.start('HomeScene');
-    });
+    homeBg.on('pointerdown', () => this.scene.start('HomeScene'));
   }
 }
