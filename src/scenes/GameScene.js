@@ -14,6 +14,10 @@ export default class GameScene extends Phaser.Scene {
     this.isAlive = true;
   }
 
+  preload() {
+    this.load.audio('gameplay', 'src/music/gameplay.mp3');
+  }
+
   create() {
     this.isAlive = true;
     this.score = 0;
@@ -99,16 +103,43 @@ export default class GameScene extends Phaser.Scene {
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.input.on('pointerdown', () => this._tryFlipGravity());
 
+    // Music
+    this.music = this.sound.add('gameplay', { loop: true, volume: 0.6 });
+    this.music.play();
+
     // Score text (fixed to camera)
     this.scoreText = this.add.text(16, 16, 'Score: 0', {
       fontSize: '20px',
       fill: '#ffffff',
       fontFamily: 'monospace',
     }).setScrollFactor(0);
+
+    // Pause button (top-right, fixed to camera)
+    this.isPaused = false;
+    const btnSize = 44;
+    const margin = 10;
+    this.pauseBtnBg = this.add.rectangle(width - margin - btnSize / 2, margin + btnSize / 2, btnSize, btnSize, 0x333355)
+      .setScrollFactor(0).setInteractive({ useHandCursor: true }).setDepth(10);
+    this.pauseBtnText = this.add.text(width - margin - btnSize / 2, margin + btnSize / 2, 'II', {
+      fontSize: '16px',
+      fill: '#ffffff',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+    }).setScrollFactor(0).setOrigin(0.5).setDepth(10);
+
+    this.pauseBtnBg.on('pointerdown', () => this._togglePause());
+
+    this.pausedLabel = this.add.text(width / 2, height / 2, 'PAUSED', {
+      fontSize: '48px',
+      fill: '#ffffff',
+      fontFamily: 'monospace',
+      fontStyle: 'bold',
+    }).setScrollFactor(0).setOrigin(0.5).setDepth(10).setVisible(false);
   }
 
   update(time, delta) {
-    if (!this.isAlive) return;
+    this.pauseJustToggled = false;
+    if (!this.isAlive || this.isPaused) return;
 
     const dt = delta / 1000;
 
@@ -346,8 +377,27 @@ export default class GameScene extends Phaser.Scene {
     g.fillCircle(boardX + (brd - 3) * tCos, boardY + (brd - 3) * tSin, 3);
   }
 
+  _togglePause() {
+    this.pauseJustToggled = true;
+    this.isPaused = !this.isPaused;
+    if (this.isPaused) {
+      this.physics.pause();
+      this.spawnTimer.paused = true;
+      this.music.pause();
+      this.pauseBtnText.setText('\u25B6');
+      this.pausedLabel.setVisible(true);
+    } else {
+      this.physics.resume();
+      this.spawnTimer.paused = false;
+      this.music.resume();
+      this.pauseBtnText.setText('II');
+      this.pausedLabel.setVisible(false);
+    }
+  }
+
   _tryFlipGravity() {
-    if (!this.isAlive) return;
+    if (!this.isAlive || this.isPaused || this.pauseJustToggled) return;
+    this.pauseJustToggled = false;
     const onSurface = this.player.body.blocked.down || this.player.body.blocked.up;
     if (!onSurface) return;
     this.gravityDir *= -1;
@@ -616,7 +666,10 @@ export default class GameScene extends Phaser.Scene {
   _gameOver() {
     if (!this.isAlive) return;
     this.isAlive = false;
+    this.music.stop();
     this.spawnTimer.remove();
+    this.pauseBtnBg.setVisible(false);
+    this.pauseBtnText.setVisible(false);
     this.player.body.setVelocity(0, 0);
     this.player.body.setGravityY(-GRAVITY * this.gravityDir);
 
