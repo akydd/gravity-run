@@ -9,7 +9,7 @@ export default class HomeScene extends Phaser.Scene {
     const cy = height / 2;
 
     // Title
-    this.add.text(cx, cy - 80, 'GRAVITY RUN', {
+    this.add.text(cx, cy - 80, 'SK8R DUDE', {
       fontSize: '52px',
       fill: '#ffffff',
       fontFamily: 'monospace',
