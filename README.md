@@ -1,4 +1,4 @@
-# Gravity Run
+# Sk8r-dude
 
 A side-scrolling survival game built with [Phaser 3](https://phaser.io). You play as a skateboarder hurtling through a tunnel. Press Space to flip gravity and avoid the obstacles ahead.
 
