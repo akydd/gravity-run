@@ -21,6 +21,11 @@ export default class GameScene extends Phaser.Scene {
   create() {
     this.isAlive = true;
     this.score = 0;
+    this.scrollSpeed = SCROLL_SPEED;
+    this.currentGravity = GRAVITY;
+    this.spawnInterval = SPAWN_INTERVAL;
+    this.nextSpeedup = 5000;
+    this.nextObstacleSpeedup = 10000;
     this.physics.world.gravity.y = GRAVITY;
 
     const { width, height } = this.scale;
@@ -151,8 +156,27 @@ export default class GameScene extends Phaser.Scene {
       this._tryFlipGravity();
     }
 
-    this.score += SCROLL_SPEED * dt;
+    this.score += this.scrollSpeed * dt;
     this.scoreText.setText('Score: ' + Math.floor(this.score));
+
+    if (this.score >= this.nextSpeedup) {
+      this.scrollSpeed *= 1.05;
+      this.currentGravity *= 1.05;
+      this.physics.world.gravity.y = this.currentGravity * this.gravityDir;
+      this.nextSpeedup += 5000;
+    }
+
+    if (this.score >= this.nextObstacleSpeedup) {
+      this.spawnInterval *= 0.9;
+      this.spawnTimer.remove();
+      this.spawnTimer = this.time.addEvent({
+        delay: this.spawnInterval,
+        callback: this._spawnObstacle,
+        callbackScope: this,
+        loop: true,
+      });
+      this.nextObstacleSpeedup += 10000;
+    }
   }
 
   // ─── sprite texture ───────────────────────────────────────────────────────
@@ -401,7 +425,7 @@ export default class GameScene extends Phaser.Scene {
     const onSurface = this.player.body.blocked.down || this.player.body.blocked.up;
     if (!onSurface) return;
     this.gravityDir *= -1;
-    this.physics.world.gravity.y = GRAVITY * this.gravityDir;
+    this.physics.world.gravity.y = this.currentGravity * this.gravityDir;
     this.player.body.setVelocityY(0);
     this._playFlipAnim();
   }
@@ -438,7 +462,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _scrollWalls(dt) {
-    const shift = SCROLL_SPEED * dt;
+    const shift = this.scrollSpeed * dt;
     const camX = this.cameras.main.scrollX;
 
     const rows = new Map();
@@ -646,7 +670,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _scrollObstacles(dt) {
-    const shift = SCROLL_SPEED * dt;
+    const shift = this.scrollSpeed * dt;
     const camX = this.cameras.main.scrollX;
 
     const scrollGroup = (group) => {
@@ -671,7 +695,7 @@ export default class GameScene extends Phaser.Scene {
     this.pauseBtnBg.setVisible(false);
     this.pauseBtnText.setVisible(false);
     this.player.body.setVelocity(0, 0);
-    this.player.body.setGravityY(-GRAVITY * this.gravityDir);
+    this.player.body.setGravityY(-this.currentGravity * this.gravityDir);
 
     // Death animation — play frames then spin/fade out
     this.player.play('die');
